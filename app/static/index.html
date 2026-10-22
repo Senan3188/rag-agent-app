@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Document Q&A</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <main>
+    <header><span class="badge">LOCAL RAG</span><h1>Ask your documents.</h1><p>Upload a file, ask a question, and explore the supporting excerpts.</p></header>
+    <div class="layout">
+      <aside class="panel">
+        <h2>Your documents</h2>
+        <form id="upload-form">
+          <label for="file">Add a document</label>
+          <input id="file" type="file" accept=".pdf,.txt,.md,.csv" required>
+          <p class="hint">PDF, TXT, Markdown or CSV. Text-based files only.</p>
+          <button id="upload-button" type="submit">Upload document</button>
+        </form>
+        <hr>
+        <label for="documents">Choose a document</label>
+        <select id="documents" disabled><option value="">Loading documents…</option></select>
+        <p id="document-info" class="hint"></p>
+        <button id="refresh-button" class="secondary" type="button">Refresh list</button>
+        <a href="/docs" class="api-link">API documentation ↗</a>
+      </aside>
+      <section class="panel workspace" aria-labelledby="question-heading">
+        <h2 id="question-heading">Ask a question</h2>
+        <form id="question-form">
+          <label for="question">What would you like to know?</label>
+          <textarea id="question" rows="4" maxlength="4000" placeholder="What are the main points in this document?" required></textarea>
+          <div class="form-footer"><span class="hint">Each question is answered independently.</span><button id="ask-button" type="submit" disabled>Ask question</button></div>
+        </form>
+        <p id="status" role="status" aria-live="polite">Loading your documents…</p>
+        <div id="result" hidden>
+          <h2>Answer</h2>
+          <p id="answer"></p>
+          <h3>Supporting excerpts</h3>
+          <div id="sources"></div>
+        </div>
+      </section>
+    </div>
+    <footer>Answers are generated locally with Ollama. Check the excerpts to verify important details.</footer>
+  </main>
+</body>
+</html>
