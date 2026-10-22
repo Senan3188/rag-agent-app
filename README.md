@@ -24,7 +24,7 @@ Open http://127.0.0.1:8000 for the HTML/JavaScript frontend: upload a file, choo
 
 ## Upload and ask
 
-Supports UTF-8 `.txt`, `.md`, `.csv` and text-based `.pdf` files. CSV is treated as text, not as a queryable database. Scanned PDFs need OCR before upload.
+Supports UTF-8 `.txt`, `.md`, `.csv` and text-based `.pdf` files. CSV files are parsed as structured tables with dynamic column names and comma, semicolon, tab, or pipe delimiters. A header row with unique, nonempty names is required. Scanned PDFs need OCR before upload.
 
 ```sh
 curl -X POST http://127.0.0.1:8000/documents \
@@ -50,11 +50,15 @@ Other endpoints:
 
 ## How it works
 
-Upload → text extraction → overlapping character chunks → Ollama embeddings → SQLite.
+PDF/text upload → text extraction → overlapping character chunks → Ollama embeddings → SQLite.
 
-For each question, a compiled LangGraph `StateGraph` runs `retrieve → answer`. Retrieval embeds the question and ranks only that document's chunks by cosine similarity. The answer node sends retrieved excerpts to `qwen3:8b`, with instructions to cite evidence and acknowledge missing information. Questions are independent; no conversation history is retained. The chat model is separate from `nomic-embed-text`, the local embedding model.
+CSV upload → delimiter detection → validated headers and records → SQLite (no embeddings).
 
-SQLite in `DATA_DIR` stores extracted text and embeddings atomically. Original uploaded files are not retained. Retrieval uses NumPy exact search, suited to small local document collections. Changing the embedding model requires re-uploading documents. All model requests go to the configured Ollama URL.
+For each question, a compiled LangGraph `StateGraph` runs `retrieve → answer`. Retrieval embeds the question and ranks only that document's chunks by cosine similarity. The answer node sends retrieved excerpts to `qwen3:8b`, with instructions to cite evidence and acknowledge missing information. For CSVs, the graph instead runs `route → query_csv`. Simple questions referencing cell values search every column directly and pass complete matching candidate rows to the answer model; they do not require generated filters. Match metadata identifies the columns that matched, and ambiguous partial references require clarification. Counts, comparisons, sorting and numeric operations continue through the validated query planner. Qwen produces a schema-constrained query plan using column names and a few sample records. The planner receives exact and partial cell-value matches from every column, including short codes, numeric identifiers, email addresses, dates, and text, together with representative matching rows. No name or company columns are hardcoded. When an exact filter targets a column that lacks its value, the app corrects the column only if the mentioned value exists in exactly one column. Valid and ambiguous filters are preserved. The planner executes its proposal before answering and gets one bounded repair attempt for invalid queries or empty results when relevant values exist. If it cannot resolve the query, it requests clarification instead of asserting that matching data is absent. Python validates the plan and queries **all records**; Qwen then explains the computed result. It never executes generated Python or SQL. Supports case-insensitive exact/partial filters, numeric comparisons, counts, sum/average/min/max, sorting and selected columns. Filters are combined with AND. Unsupported or ambiguous requests ask for clarification. Select results default to 20 rows (maximum 100), with explicit match counts and truncation; aggregates use all matching rows. Numeric operations require plain numeric strings; currency and locale-specific numbers need normalization first. Blank aggregate cells are skipped. Source excerpts for CSVs show the executed plan and results with CSV record numbers (header is record 1). Duplicate matches are retained.
+
+Questions are independent; no conversation history is retained. The chat model is separate from `nomic-embed-text`, the local embedding model.
+
+SQLite in `DATA_DIR` stores extracted text, embeddings, and structured CSV records atomically. Existing databases gain a separate CSV table automatically. **Re-upload previously indexed CSV files** to use structured queries; old uploads return a clear migration message. No old documents are deleted. Original uploaded files are not retained. Retrieval uses NumPy exact search, suited to small local document collections. Changing the embedding model requires re-uploading PDF/text documents; structured CSVs do not depend on embeddings. All model requests go to the configured Ollama URL.
 
 ## Configuration
 
@@ -70,3 +74,5 @@ uv run ruff check .
 ```
 
 Tests exercise uploads, retrieval and document isolation through the real LangGraph using a fake Ollama backend, plus the HTTP adapter's Ollama request format. They do not require installed models.
+
+CSV query plans are validated for supported operations and column names, but the model can still misinterpret a question. Verify the plan and returned records under Supporting excerpts. Headerless files, duplicate headers and inconsistent record widths are rejected. This is not a general spreadsheet engine: joins, grouped aggregates and arbitrary formulas are not supported.

@@ -18,6 +18,27 @@ class Store:
                 embedding_model TEXT NOT NULL, chunks TEXT NOT NULL, embeddings TEXT NOT NULL
             )""")
 
+            db.execute("""CREATE TABLE IF NOT EXISTS csv_tables (
+                document_id TEXT PRIMARY KEY, content TEXT NOT NULL
+            )""")
+
+    def add_csv(self, filename, table):
+        identifier = str(uuid4())
+        with self.connect() as db:
+            db.execute(
+                "INSERT INTO documents VALUES (?, ?, ?, ?, ?, ?)",
+                (identifier, filename, datetime.now(UTC).isoformat(), "structured-csv", "[]", "[]"),
+            )
+            db.execute("INSERT INTO csv_tables VALUES (?, ?)", (identifier, json.dumps(table)))
+        return self.get(identifier)[0]
+
+    def csv_table(self, identifier):
+        with self.connect() as db:
+            row = db.execute(
+                "SELECT content FROM csv_tables WHERE document_id = ?", (identifier,)
+            ).fetchone()
+        return json.loads(row[0]) if row else None
+
     @contextmanager
     def connect(self):
         connection = sqlite3.connect(self.path)
@@ -67,6 +88,7 @@ class Store:
 
     def delete(self, identifier):
         with self.connect() as db:
+            db.execute("DELETE FROM csv_tables WHERE document_id = ?", (identifier,))
             return db.execute("DELETE FROM documents WHERE id = ?", (identifier,)).rowcount > 0
 
     def search(self, identifier, query_vector, model, limit):

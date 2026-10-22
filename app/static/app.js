@@ -42,7 +42,7 @@ function updateSelection() {
   $("result").hidden = true;
   const doc = documents.find((item) => item.id === $("documents").value);
   $("document-info").textContent = doc
-    ? `${doc.chunk_count} indexed excerpts · Uploaded ${new Date(doc.created_at).toLocaleDateString()}`
+    ? `${doc.embedding_model === "structured-csv" ? "Structured CSV · Searches all rows" : `${doc.chunk_count} indexed excerpts`} · Uploaded ${new Date(doc.created_at).toLocaleDateString()}`
     : "Upload a document to get started.";
   $("ask-button").disabled = busy || !doc;
 }
@@ -112,7 +112,9 @@ $("question-form").addEventListener("submit", async (event) => {
       const details = document.createElement("details");
       const summary = document.createElement("summary");
       const page = source.page === null ? "" : ` · Page ${source.page}`;
-      summary.textContent = `[${source.citation}] Excerpt ${source.index + 1}${page}`;
+      summary.textContent = source.kind === "csv_result"
+        ? `[${source.citation}] CSV query and results`
+        : `[${source.citation}] Excerpt ${source.index + 1}${page}`;
       const excerpt = document.createElement("p");
       excerpt.className = "excerpt";
       excerpt.textContent = source.text;

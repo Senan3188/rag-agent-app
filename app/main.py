@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from app.agent import build_graph
 from app.config import Settings
+from app.csv_query import parse_csv
 from app.documents import DocumentError, extract_chunks
 from app.ollama import Ollama, OllamaError
 from app.store import Store
@@ -34,6 +35,7 @@ class Source(BaseModel):
     page: int | None
     text: str
     score: float
+    kind: str = "excerpt"
 
 
 class Answer(BaseModel):
@@ -88,6 +90,12 @@ def create_app(settings: Settings | None = None, ollama=None):
         if not content:
             raise HTTPException(422, "File is empty")
         filename = Path(file.filename or "upload.txt").name
+        if Path(filename).suffix.lower() == ".csv":
+            try:
+                table = await asyncio.to_thread(parse_csv, content)
+            except DocumentError as exc:
+                raise HTTPException(422, str(exc)) from exc
+            return await asyncio.to_thread(request.app.state.store.add_csv, filename, table)
         try:
             chunks = await asyncio.to_thread(
                 extract_chunks, filename, content, settings.chunk_size, settings.chunk_overlap
